@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+  <meta name="theme-color" content="#0a0a0f"/>
+  <title>FitTrack — Free Fitness Tracker</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css"/>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+
+    body {
+      padding-bottom: 0;
+      min-height: 100vh;
+    }
+
+    /* ── glow blobs ── */
+    .glow-blob { position: fixed; border-radius: 50%; filter: blur(100px); pointer-events: none; z-index: 0; }
+    .glow-1 { width: 500px; height: 500px; background: rgba(232,255,71,0.04); top: -100px; left: -100px; }
+    .glow-2 { width: 400px; height: 400px; background: rgba(168,85,247,0.05); bottom: -80px; right: -80px; }
+
+    /* ── OUTER LAYOUT ── */
+    .lp-wrap {
+      position: relative;
+      z-index: 1;
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: 1fr 440px;
+      grid-template-rows: auto 1fr auto;
+    }
+
+    /* ── TOP NAV BAR ── */
+    .lp-nav {
+      grid-column: 1 / -1;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 18px 48px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(10,10,15,0.8);
+      backdrop-filter: blur(20px);
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+    .lp-nav-logo {
+      font-family: var(--font-disp);
+      font-size: 28px;
+      letter-spacing: 4px;
+      color: var(--text);
+      text-decoration: none;
+    }
+    .lp-nav-logo span { color: var(--accent); }
+    .lp-nav-pills {
+      display: flex;
+      gap: 8px;
+    }
+    .lp-pill {
+      font-size: 12px;
+      font-weight: 600;
+      padding: 5px 12px;
+      border-radius: 99px;
+      border: 1px solid;
+    }
+    .lp-pill.yellow { color: var(--accent);  border-color: rgba(232,255,71,0.3); background: rgba(232,255,71,0.07); }
+    .lp-pill.green  { color: var(--success); border-color: rgba(74,222,128,0.3); background: rgba(74,222,128,0.07); }
+    .lp-pill.orange { color: var(--accent2); border-color: rgba(255,107,53,0.3); background: rgba(255,107,53,0.07); }
+
+    /* ── LEFT: ABOUT COLUMN ── */
+    .lp-left {
+      padding: 60px 48px 60px 48px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      border-right: 1px solid var(--border);
+    }
+
+    .lp-headline {
+      font-family: var(--font-disp);
+      font-size: clamp(56px, 6vw, 88px);
+      letter-spacing: 4px;
+      line-height: 0.95;
+      margin-bottom: 20px;
+    }
+    .lp-headline span { color: var(--accent); }
+    .lp-headline .sub { color: var(--muted); font-size: clamp(28px, 3vw, 44px); display: block; margin-top: 6px; }
+
+    .lp-tagline {
+      font-size: 17px;
+      color: var(--muted);
+      line-height: 1.7;
+      max-width: 480px;
+      margin-bottom: 40px;
+    }
+    .lp-tagline strong { color: var(--text); }
+
+    /* Feature list */
+    .lp-features {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      margin-bottom: 40px;
+    }
+    .lp-feature {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .lp-feature-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      flex-shrink: 0;
+    }
+    .lp-feature-icon.y { background: rgba(232,255,71,0.1); }
+    .lp-feature-icon.o { background: rgba(255,107,53,0.1); }
+    .lp-feature-icon.g { background: rgba(74,222,128,0.1); }
+    .lp-feature-icon.p { background: rgba(168,85,247,0.1); }
+    .lp-feature-text strong { display: block; font-size: 14px; font-weight: 600; color: var(--text); }
+    .lp-feature-text span   { font-size: 13px; color: var(--muted); }
+
+    /* VS table */
+    .lp-vs {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      overflow: hidden;
+    }
+    .lp-vs-header {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      background: var(--surface2);
+      border-bottom: 1px solid var(--border);
+    }
+    .lp-vs-col-head {
+      padding: 10px 16px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+    }
+    .lp-vs-col-head.them { color: var(--muted); border-right: 1px solid var(--border); }
+    .lp-vs-col-head.us   { color: var(--success); }
+    .lp-vs-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+    }
+    .lp-vs-row:last-child { border-bottom: none; }
+    .lp-vs-cell {
+      padding: 10px 16px;
+      font-size: 13px;
+    }
+    .lp-vs-cell.them { color: var(--muted); border-right: 1px solid var(--border); }
+    .lp-vs-cell.us   { color: var(--text); background: rgba(74,222,128,0.03); }
+
+    /* ── RIGHT: FORM COLUMN ── */
+    .lp-right {
+      background: var(--surface);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 48px 36px;
+      position: sticky;
+      top: 61px;
+      height: calc(100vh - 61px);
+      overflow-y: auto;
+    }
+
+    .login-card {
+      width: 100%;
+      max-width: 368px;
+      position: relative;
+    }
+
+    .login-logo {
+      font-family: var(--font-disp);
+      font-size: 40px;
+      letter-spacing: 4px;
+      text-align: center;
+      margin-bottom: 4px;
+    }
+    .login-logo span { color: var(--accent); }
+
+    .login-tagline {
+      text-align: center;
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 28px;
+    }
+
+    .auth-tabs {
+      display: flex;
+      background: var(--surface2);
+      border-radius: 12px;
+      padding: 4px;
+      margin-bottom: 20px;
+      gap: 4px;
+    }
+    .auth-tab {
+      flex: 1;
+      padding: 10px 8px;
+      border: none;
+      border-radius: 9px;
+      font-family: var(--font-body);
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      background: transparent;
+      color: var(--muted);
+      -webkit-appearance: none;
+    }
+    .auth-tab.active {
+      background: var(--bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    }
+    .auth-tab.active.signup-tab { color: #c4b5fd; border-color: rgba(168,85,247,0.3); }
+
+    .form-section { display: none; }
+    .form-section.active { display: block; }
+
+    .input-wrap { position: relative; margin-bottom: 10px; }
+    .input-icon {
+      position: absolute; left: 14px; top: 50%; transform: translateY(-50%);
+      font-size: 16px; pointer-events: none;
+    }
+    .input-with-icon { padding-left: 42px !important; }
+    .password-toggle {
+      position: absolute; right: 14px; top: 50%; transform: translateY(-50%);
+      background: none; border: none; color: var(--muted); cursor: pointer;
+      font-size: 16px; padding: 4px; -webkit-appearance: none;
+    }
+
+    .auth-divider {
+      display: flex; align-items: center; gap: 12px; margin: 16px 0;
+    }
+    .auth-divider::before, .auth-divider::after {
+      content: ''; flex: 1; height: 1px; background: var(--border);
+    }
+    .auth-divider span { font-size: 12px; color: var(--muted); }
+
+    .btn-signin { background: var(--accent); color: #000; font-weight: 700; }
+    .btn-signup { background: linear-gradient(135deg, #7c3aed, #a855f7); color: #fff; }
+
+    .error-msg { color: var(--danger); font-size: 13px; min-height: 18px; margin-bottom: 8px; text-align: center; }
+    .success-msg {
+      background: rgba(74,222,128,0.1); border: 1px solid rgba(74,222,128,0.3);
+      border-radius: 10px; padding: 14px 16px; font-size: 14px; color: var(--success);
+      text-align: center; margin-bottom: 16px; display: none;
+    }
+
+    .strength-bar-wrap { margin-top: -2px; margin-bottom: 10px; }
+    .strength-bar-track { height: 4px; background: var(--surface2); border-radius: 99px; overflow: hidden; }
+    .strength-bar-fill  { height: 100%; width: 0%; border-radius: 99px; transition: width 0.3s, background 0.3s; }
+    .strength-label { font-size: 11px; color: var(--muted); margin-top: 4px; text-align: right; }
+
+    .reset-link {
+      display: block; text-align: center; font-size: 13px; color: var(--muted);
+      margin-top: 14px; cursor: pointer; text-decoration: underline; text-underline-offset: 3px;
+    }
+    .reset-link:hover { color: var(--text); }
+
+    .loading-overlay {
+      position: absolute; inset: 0; background: rgba(13,13,18,0.85);
+      border-radius: 16px; display: none; align-items: center; justify-content: center; z-index: 10;
+    }
+    .spinner {
+      width: 36px; height: 36px;
+      border: 3px solid var(--border); border-top-color: var(--accent);
+      border-radius: 50%; animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Already logged in */
+    .logged-in-card {
+      width: 100%; max-width: 368px; text-align: center; display: none;
+    }
+    .logged-in-icon { font-size: 52px; margin-bottom: 12px; }
+    .logged-in-name { font-family: var(--font-disp); font-size: 28px; letter-spacing: 2px; color: var(--success); margin-bottom: 4px; }
+    .logged-in-email { font-size: 13px; color: var(--muted); margin-bottom: 20px; }
+
+    /* ── FOOTER ── */
+    .lp-footer {
+      grid-column: 1 / -1;
+      border-top: 1px solid var(--border);
+      padding: 20px 48px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .lp-footer-left  { font-size: 13px; color: var(--muted); }
+    .lp-footer-right { font-size: 12px; color: var(--muted); }
+
+    /* ── MOBILE: stack vertically ── */
+    @media (max-width: 860px) {
+      .lp-wrap {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto auto auto auto;
+      }
+      .lp-nav { padding: 16px 20px; }
+      .lp-nav-pills { display: none; }
+      .lp-left {
+        padding: 40px 20px;
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+      }
+      .lp-right {
+        position: static;
+        height: auto;
+        padding: 40px 20px;
+        background: transparent;
+        border-top: none;
+      }
+      .lp-footer { padding: 16px 20px; flex-direction: column; gap: 4px; text-align: center; }
+      .lp-headline { font-size: 52px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="noise"></div>
+  <div class="glow-blob glow-1"></div>
+  <div class="glow-blob glow-2"></div>
+
+  <div class="lp-wrap">
+
+    <!-- ── NAV ── -->
+    <nav class="lp-nav">
+      <div class="lp-nav-logo">FIT<span>TRACK</span></div>
+      <div class="lp-nav-pills">
+        <span class="lp-pill yellow">🆓 Free Forever</span>
+        <span class="lp-pill green">🔒 Private</span>
+        <span class="lp-pill orange">📵 No Ads</span>
+      </div>
+    </nav>
+
+    <!-- ── LEFT COLUMN: ABOUT ── -->
+    <div class="lp-left">
+
+      <div class="lp-headline">
+        YOUR<br><span>FITNESS</span>
+        <span class="sub">YOUR WAY.</span>
+      </div>
+
+      <p class="lp-tagline">
+        FitTrack is a <strong>free, private fitness tracker</strong> you own completely.
+        Log your food, track your workouts, and watch your weight trend down —
+        all without subscriptions, ads, or anyone snooping on your data.
+      </p>
+
+      <!-- Features -->
+      <div class="lp-features">
+        <div class="lp-feature">
+          <div class="lp-feature-icon y">🍽️</div>
+          <div class="lp-feature-text">
+            <strong>Food Logging</strong>
+            <span>Track meals and calories with a daily goal. See exactly what you're eating.</span>
+          </div>
+        </div>
+        <div class="lp-feature">
+          <div class="lp-feature-icon o">🔥</div>
+          <div class="lp-feature-text">
+            <strong>Cardio Tracking</strong>
+            <span>Log any workout and get auto-calculated calorie burn based on your body weight.</span>
+          </div>
+        </div>
+        <div class="lp-feature">
+          <div class="lp-feature-icon g">📉</div>
+          <div class="lp-feature-text">
+            <strong>Weight Progress Chart</strong>
+            <span>Watch your weight trend downward over 30, 60, or 90 days on a clean chart.</span>
+          </div>
+        </div>
+        <div class="lp-feature">
+          <div class="lp-feature-icon p">👤</div>
+          <div class="lp-feature-text">
+            <strong>Private Accounts</strong>
+            <span>Your data is yours alone. No one else — not even the site owner — can see it.</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- VS comparison -->
+      <div class="lp-vs">
+        <div class="lp-vs-header">
+          <div class="lp-vs-col-head them">Other Apps</div>
+          <div class="lp-vs-col-head us">✅ FitTrack</div>
+        </div>
+        <div class="lp-vs-row">
+          <div class="lp-vs-cell them">❌ $10–$20/month</div>
+          <div class="lp-vs-cell us">Free forever</div>
+        </div>
+        <div class="lp-vs-row">
+          <div class="lp-vs-cell them">❌ Ads everywhere</div>
+          <div class="lp-vs-cell us">Zero ads</div>
+        </div>
+        <div class="lp-vs-row">
+          <div class="lp-vs-cell them">❌ Company reads your data</div>
+          <div class="lp-vs-cell us">Only you can see it</div>
+        </div>
+        <div class="lp-vs-row">
+          <div class="lp-vs-cell them">❌ Cluttered with features</div>
+          <div class="lp-vs-cell us">Clean and simple</div>
+        </div>
+        <div class="lp-vs-row">
+          <div class="lp-vs-cell them">❌ Stops working if you cancel</div>
+          <div class="lp-vs-cell us">Yours forever</div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ── RIGHT COLUMN: AUTH FORM ── -->
+    <div class="lp-right">
+
+      <!-- Already logged in -->
+      <div class="logged-in-card" id="loggedInCard">
+        <div class="logged-in-icon">✅</div>
+        <div class="logged-in-name">WELCOME BACK</div>
+        <div class="logged-in-email" id="loggedInEmail"></div>
+        <a href="index.html" class="btn btn-primary" style="display:flex;justify-content:center;margin-bottom:10px">
+          Go to Dashboard →
+        </a>
+        <button class="btn btn-ghost" id="loggedInSignOut">Sign Out</button>
+      </div>
+
+      <!-- Auth card -->
+      <div class="login-card" id="authCard">
+        <div class="loading-overlay" id="loadingOverlay">
+          <div class="spinner"></div>
+        </div>
+
+        <div class="login-logo">FIT<span>TRACK</span></div>
+        <div class="login-tagline">Sign in or create your free account</div>
+
+        <div class="auth-tabs">
+          <button class="auth-tab active" id="tabSignIn" onclick="switchTab('signin')">Sign In</button>
+          <button class="auth-tab signup-tab" id="tabSignUp" onclick="switchTab('signup')">Create Account</button>
+        </div>
+
+        <!-- SIGN IN -->
+        <div class="form-section active" id="signinForm">
+          <div class="success-msg" id="signinSuccess"></div>
+          <div class="input-wrap">
+            <span class="input-icon">✉️</span>
+            <input type="email" id="signinEmail" class="input input-with-icon" placeholder="Email address" autocomplete="email" inputmode="email"/>
+          </div>
+          <div class="input-wrap">
+            <span class="input-icon">🔒</span>
+            <input type="password" id="signinPassword" class="input input-with-icon" placeholder="Password" autocomplete="current-password" style="padding-right:46px"/>
+            <button class="password-toggle" onclick="togglePw('signinPassword',this)" type="button">👁️</button>
+          </div>
+          <div class="error-msg" id="signinError"></div>
+          <button class="btn btn-signin" id="signinBtn">Sign In</button>
+          <div class="auth-divider"><span>or</span></div>
+          <span class="reset-link" onclick="switchTab('reset')">Forgot your password?</span>
+        </div>
+
+        <!-- SIGN UP -->
+        <div class="form-section" id="signupForm">
+          <div class="input-wrap">
+            <span class="input-icon">✉️</span>
+            <input type="email" id="signupEmail" class="input input-with-icon" placeholder="Email address" autocomplete="email" inputmode="email"/>
+          </div>
+          <div class="input-wrap">
+            <span class="input-icon">🔒</span>
+            <input type="password" id="signupPassword" class="input input-with-icon" placeholder="Password (6+ characters)" autocomplete="new-password" style="padding-right:46px" oninput="checkStrength(this.value)"/>
+            <button class="password-toggle" onclick="togglePw('signupPassword',this)" type="button">👁️</button>
+          </div>
+          <div class="strength-bar-wrap">
+            <div class="strength-bar-track"><div class="strength-bar-fill" id="strengthFill"></div></div>
+            <div class="strength-label" id="strengthLabel"></div>
+          </div>
+          <div class="input-wrap">
+            <span class="input-icon">🔒</span>
+            <input type="password" id="signupConfirm" class="input input-with-icon" placeholder="Confirm password" autocomplete="new-password"/>
+          </div>
+          <div class="error-msg" id="signupError"></div>
+          <div class="success-msg" id="signupSuccess">🎉 Account created! Check your email to confirm, then sign in.</div>
+          <button class="btn btn-signup" id="signupBtn">Create My Account</button>
+          <p style="font-size:12px;color:var(--muted);text-align:center;margin-top:14px;line-height:1.5">
+            Your data is stored privately.<br/>Nobody else can see your logs.
+          </p>
+        </div>
+
+        <!-- RESET -->
+        <div class="form-section" id="resetForm">
+          <p style="font-size:14px;color:var(--muted);margin-bottom:16px;text-align:center;line-height:1.5">
+            Enter your email and we'll send a reset link.
+          </p>
+          <div class="input-wrap">
+            <span class="input-icon">✉️</span>
+            <input type="email" id="resetEmail" class="input input-with-icon" placeholder="Email address" autocomplete="email" inputmode="email"/>
+          </div>
+          <div class="error-msg" id="resetError"></div>
+          <div class="success-msg" id="resetSuccess">📧 Check your email for a reset link!</div>
+          <button class="btn btn-primary" id="resetBtn">Send Reset Link</button>
+          <span class="reset-link" onclick="switchTab('signin')" style="margin-top:12px">← Back to Sign In</span>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ── FOOTER ── -->
+    <footer class="lp-footer">
+      <div class="lp-footer-left">FitTrack · Free & private · Runs on GitHub Pages</div>
+      <div class="lp-footer-right">Each account is completely private · Your data belongs to you</div>
+    </footer>
+
+  </div>
+
+  <script src="js/config.js"></script>
+  <script>
+    (async () => {
+      const { data: { user } } = await db.auth.getUser();
+      if (user) {
+        document.getElementById('authCard').style.display = 'none';
+        document.getElementById('loggedInCard').style.display = 'block';
+        document.getElementById('loggedInEmail').textContent = user.email;
+        document.getElementById('loggedInSignOut').addEventListener('click', async () => {
+          await db.auth.signOut(); location.reload();
+        });
+      }
+    })();
+
+    function switchTab(tab) {
+      document.querySelectorAll('.form-section').forEach(s => s.classList.remove('active'));
+      document.getElementById('tabSignIn').classList.remove('active');
+      document.getElementById('tabSignUp').classList.remove('active');
+      if (tab === 'signin') {
+        document.getElementById('signinForm').classList.add('active');
+        document.getElementById('tabSignIn').classList.add('active');
+      } else if (tab === 'signup') {
+        document.getElementById('signupForm').classList.add('active');
+        document.getElementById('tabSignUp').classList.add('active');
+      } else if (tab === 'reset') {
+        document.getElementById('resetForm').classList.add('active');
+      }
+    }
+
+    function togglePw(id, btn) {
+      const el = document.getElementById(id);
+      el.type = el.type === 'password' ? 'text' : 'password';
+      btn.textContent = el.type === 'password' ? '👁️' : '🙈';
+    }
+
+    function checkStrength(val) {
+      const fill = document.getElementById('strengthFill');
+      const label = document.getElementById('strengthLabel');
+      if (!val) { fill.style.width = '0'; label.textContent = ''; return; }
+      let score = 0;
+      if (val.length >= 8) score++;
+      if (val.length >= 12) score++;
+      if (/[A-Z]/.test(val)) score++;
+      if (/[0-9]/.test(val)) score++;
+      if (/[^A-Za-z0-9]/.test(val)) score++;
+      const levels = [
+        { w:'20%', color:'#f87171', text:'Weak' },
+        { w:'40%', color:'#fb923c', text:'Fair' },
+        { w:'60%', color:'#facc15', text:'Good' },
+        { w:'80%', color:'#4ade80', text:'Strong' },
+        { w:'100%', color:'#22c55e', text:'Very strong' },
+      ];
+      const lvl = levels[Math.min(score, 4)];
+      fill.style.width = lvl.w;
+      fill.style.background = lvl.color;
+      label.textContent = lvl.text;
+      label.style.color = lvl.color;
+    }
+
+    function setLoading(on) {
+      document.getElementById('loadingOverlay').style.display = on ? 'flex' : 'none';
+    }
+
+    document.getElementById('signinBtn').addEventListener('click', async () => {
+      const email = document.getElementById('signinEmail').value.trim();
+      const pass  = document.getElementById('signinPassword').value;
+      const errEl = document.getElementById('signinError');
+      errEl.textContent = '';
+      if (!email) { errEl.textContent = 'Please enter your email.'; return; }
+      if (!pass)  { errEl.textContent = 'Please enter your password.'; return; }
+      setLoading(true);
+      const { error } = await db.auth.signInWithPassword({ email, password: pass });
+      setLoading(false);
+      if (error) {
+        errEl.textContent = error.message === 'Invalid login credentials' ? 'Wrong email or password.' : error.message;
+      } else {
+        window.location.href = 'index.html';
+      }
+    });
+
+    ['signinEmail','signinPassword'].forEach(id => {
+      document.getElementById(id).addEventListener('keydown', e => {
+        if (e.key === 'Enter') document.getElementById('signinBtn').click();
+      });
+    });
+
+    document.getElementById('signupBtn').addEventListener('click', async () => {
+      const email   = document.getElementById('signupEmail').value.trim();
+      const pass    = document.getElementById('signupPassword').value;
+      const confirm = document.getElementById('signupConfirm').value;
+      const errEl   = document.getElementById('signupError');
+      const succEl  = document.getElementById('signupSuccess');
+      errEl.textContent = ''; succEl.style.display = 'none';
+      if (!email)           { errEl.textContent = 'Please enter your email.'; return; }
+      if (!pass)            { errEl.textContent = 'Please enter a password.'; return; }
+      if (pass.length < 6)  { errEl.textContent = 'Password must be 6+ characters.'; return; }
+      if (pass !== confirm)  { errEl.textContent = "Passwords don't match."; return; }
+      setLoading(true);
+      const { error } = await db.auth.signUp({ email, password: pass });
+      setLoading(false);
+      if (error) { errEl.textContent = error.message; }
+      else {
+        document.getElementById('signupBtn').style.display = 'none';
+        succEl.style.display = 'block';
+        document.getElementById('signupEmail').value = '';
+        document.getElementById('signupPassword').value = '';
+        document.getElementById('signupConfirm').value = '';
+        checkStrength('');
+        setTimeout(() => switchTab('signin'), 3000);
+      }
+    });
+
+    document.getElementById('resetBtn').addEventListener('click', async () => {
+      const email = document.getElementById('resetEmail').value.trim();
+      const errEl = document.getElementById('resetError');
+      const succEl = document.getElementById('resetSuccess');
+      errEl.textContent = ''; succEl.style.display = 'none';
+      if (!email) { errEl.textContent = 'Please enter your email.'; return; }
+      setLoading(true);
+      const { error } = await db.auth.resetPasswordForEmail(email, {
+        redirectTo: window.location.origin + '/fittracker/pages/reset-password.html'
+      });
+      setLoading(false);
+      if (error) { errEl.textContent = error.message; }
+      else { succEl.style.display = 'block'; document.getElementById('resetBtn').style.display = 'none'; }
+    });
+
+    const hashParams = new URLSearchParams(window.location.hash.replace('#', '?'));
+    if (hashParams.get('type') === 'recovery') {
+      window.location.href = 'pages/reset-password.html';
+    }
+  </script>
+</body>
+</html>

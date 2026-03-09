@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+  <meta name="theme-color" content="#0a0a0f"/>
+  <title>FitTrack — Food Log</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../css/style.css"/>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    .goal-banner {
+      background: var(--surface);
+      border: 1px solid rgba(232,255,71,0.2);
+      border-radius: var(--radius);
+      padding: 16px 18px;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .goal-banner-left { display: flex; align-items: center; gap: 12px; }
+    .goal-banner-icon { font-size: 24px; }
+    .goal-banner-label { font-size: 13px; color: var(--muted); }
+    .goal-banner-val {
+      font-family: var(--font-disp);
+      font-size: 28px;
+      letter-spacing: 1px;
+      color: var(--accent);
+      line-height: 1;
+    }
+    .goal-banner-source { font-size: 11px; color: var(--muted); margin-top: 2px; }
+    .goal-edit-btn {
+      font-size: 12px;
+      color: var(--muted);
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 6px 14px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: color 0.15s, border-color 0.15s;
+      -webkit-appearance: none;
+    }
+    .goal-edit-btn:hover { color: var(--accent); border-color: rgba(232,255,71,0.3); }
+
+    /* Goal edit panel */
+    .goal-edit-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 18px;
+      margin-bottom: 16px;
+      display: none;
+    }
+    .goal-edit-panel.open { display: block; }
+    .goal-edit-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 14px;
+    }
+    .goal-options {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+    .goal-option {
+      background: var(--surface2);
+      border: 1.5px solid var(--border);
+      border-radius: 12px;
+      padding: 14px;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+      text-align: center;
+    }
+    .goal-option:hover { border-color: rgba(232,255,71,0.3); }
+    .goal-option.selected {
+      border-color: var(--accent);
+      background: rgba(232,255,71,0.06);
+    }
+    .goal-option-icon { font-size: 22px; margin-bottom: 6px; }
+    .goal-option-title { font-size: 13px; font-weight: 600; color: var(--text); }
+    .goal-option-desc  { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+    .manual-goal-row {
+      display: none;
+      flex-direction: column;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+    .manual-goal-row.show { display: flex; }
+    .manual-goal-row .form-group { margin-bottom: 0; }
+    .manual-goal-row #manualGoalInput { font-size: 20px; padding: 16px; text-align: center; letter-spacing: 2px; }
+    .manual-goal-row #saveManualGoal  { width: 100%; }
+
+    .goal-auto-info {
+      display: none;
+      background: rgba(232,255,71,0.06);
+      border: 1px solid rgba(232,255,71,0.15);
+      border-radius: 10px;
+      padding: 12px 14px;
+      font-size: 13px;
+      color: var(--muted);
+      margin-bottom: 14px;
+    }
+    .goal-auto-info.show { display: block; }
+    .goal-auto-info strong { color: var(--accent); }
+
+    .no-weight-warning {
+      display: none;
+      background: rgba(255,107,53,0.08);
+      border: 1px solid rgba(255,107,53,0.25);
+      border-radius: 10px;
+      padding: 12px 14px;
+      font-size: 13px;
+      color: var(--accent2);
+      margin-bottom: 14px;
+    }
+    .no-weight-warning.show { display: block; }
+    .no-weight-warning a { color: var(--accent2); font-weight: 600; text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <div class="noise"></div>
+  <main class="page">
+    <div class="page-title">FOOD<br><span style="color:var(--accent)">LOG</span></div>
+    <div class="page-subtitle">Track everything you eat</div>
+
+    <!-- Goal banner -->
+    <div class="goal-banner" id="goalBanner">
+      <div class="goal-banner-left">
+        <div class="goal-banner-icon">🎯</div>
+        <div>
+          <div class="goal-banner-label">Daily Calorie Goal</div>
+          <div class="goal-banner-val" id="goalDisplay">—</div>
+          <div class="goal-banner-source" id="goalSource">calculating…</div>
+        </div>
+      </div>
+      <button class="goal-edit-btn" id="editGoalBtn">✏️ Change Goal</button>
+    </div>
+
+    <!-- Goal edit panel (hidden by default) -->
+    <div class="goal-edit-panel" id="goalEditPanel">
+      <div class="goal-edit-title">How do you want to set your calorie goal?</div>
+
+      <div class="goal-options">
+        <div class="goal-option" id="optAuto" onclick="selectGoalMode('auto')">
+          <div class="goal-option-icon">⚖️</div>
+          <div class="goal-option-title">Auto from Weight</div>
+          <div class="goal-option-desc">Calculated based on your logged weight</div>
+        </div>
+        <div class="goal-option" id="optManual" onclick="selectGoalMode('manual')">
+          <div class="goal-option-icon">✏️</div>
+          <div class="goal-option-title">I'll Set It Myself</div>
+          <div class="goal-option-desc">Enter your own daily calorie target</div>
+        </div>
+      </div>
+
+      <!-- Auto mode info -->
+      <div class="goal-auto-info" id="autoInfo">
+        Your goal will be calculated as <strong>12 × your weight in lbs</strong> — a standard estimate for weight loss. 
+        For example, if you weigh 260 lbs, your goal is <strong>3,120 cal</strong> to maintain, 
+        and FitTrack sets your target at <strong>500 less</strong> (2,620 cal) for steady weight loss.
+      </div>
+
+      <!-- No weight logged warning -->
+      <div class="no-weight-warning" id="noWeightWarning">
+        ⚠️ You haven't logged your weight yet. <a href="weight.html">Log your weight first</a> so FitTrack can calculate your goal automatically.
+      </div>
+
+      <!-- Manual input -->
+      <div class="manual-goal-row" id="manualRow">
+        <div class="form-group">
+          <label class="form-label">Your daily calorie goal</label>
+          <input type="number" id="manualGoalInput" class="input" placeholder="e.g. 1800" min="800" max="5000" inputmode="numeric"/>
+          <div style="font-size:12px;color:var(--muted);margin-top:6px;text-align:center">Recommended: 1,200 – 2,500 cal for weight loss</div>
+        </div>
+        <button class="btn btn-primary" id="saveManualGoal">Save Goal</button>
+      </div>
+
+      <button class="btn btn-ghost" id="closeGoalPanel" style="width:100%">Cancel</button>
+    </div>
+
+    <!-- Daily summary -->
+    <div class="stats-row" style="margin-bottom:16px">
+      <div class="stat-card accent-yellow">
+        <span class="stat-val" id="totalEaten">0</span>
+        <span class="stat-label">Eaten Today</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-val muted" id="remaining">—</span>
+        <span class="stat-label">Remaining</span>
+      </div>
+    </div>
+
+    <div class="progress-bar-wrap">
+      <div class="progress-bar-track">
+        <div class="progress-bar-fill" id="calBar" style="background:var(--accent)"></div>
+      </div>
+      <div class="progress-bar-labels">
+        <span>0</span>
+        <span id="goalLabel">Goal: — cal</span>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- Add food form -->
+    <div class="section-label">Add Food</div>
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-body">
+        <div class="form-group">
+          <label class="form-label">Food name</label>
+          <input type="text" id="foodName" class="input" placeholder="e.g. Grilled chicken breast" autocomplete="off"/>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Calories</label>
+            <input type="number" id="foodCals" class="input" placeholder="e.g. 300" min="0" inputmode="numeric"/>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Meal</label>
+            <select id="mealType" class="input">
+              <option value="breakfast">🌅 Breakfast</option>
+              <option value="lunch">☀️ Lunch</option>
+              <option value="dinner" selected>🌙 Dinner</option>
+              <option value="snack">🍎 Snack</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Date</label>
+          <input type="date" id="foodDate" class="input"/>
+        </div>
+        <button class="btn btn-primary" id="addFoodBtn">+ Add Food</button>
+      </div>
+    </div>
+
+    <!-- Log list -->
+    <div class="section-header">
+      <div class="section-label" style="margin-bottom:0">Today's Entries</div>
+      <input type="date" id="viewDate" class="input" style="width:auto;font-size:13px;padding:8px 12px"/>
+    </div>
+
+    <div class="log-list" id="foodList">
+      <div class="empty-state">
+        <div class="empty-icon">🥗</div>
+        <p>No food logged yet.<br/>Add your first meal above!</p>
+      </div>
+    </div>
+  </main>
+
+  <script src="../js/config.js"></script>
+  <script src="../js/nav.js"></script>
+  <script src="../js/utils.js"></script>
+  <script>
+    const MEAL_ICONS = { breakfast:'🌅', lunch:'☀️', dinner:'🌙', snack:'🍎', other:'🍽️' };
+    let DAILY_GOAL = null;   // null = not loaded yet
+    let goalMode   = 'auto'; // 'auto' or 'manual'
+    let currentUser = null;
+
+    document.getElementById('foodDate').value = todayStr();
+    document.getElementById('viewDate').value  = todayStr();
+    document.getElementById('viewDate').addEventListener('change', loadPageData);
+
+    // ── GOAL PANEL TOGGLE ──
+    document.getElementById('editGoalBtn').addEventListener('click', () => {
+      document.getElementById('goalEditPanel').classList.add('open');
+      updateGoalPanelUI();
+    });
+    document.getElementById('closeGoalPanel').addEventListener('click', () => {
+      document.getElementById('goalEditPanel').classList.remove('open');
+    });
+
+    function selectGoalMode(mode) {
+      goalMode = mode;
+      document.getElementById('optAuto').classList.toggle('selected', mode === 'auto');
+      document.getElementById('optManual').classList.toggle('selected', mode === 'manual');
+      document.getElementById('manualRow').classList.toggle('show', mode === 'manual');
+      updateGoalPanelUI();
+    }
+
+    async function updateGoalPanelUI() {
+      const autoInfo      = document.getElementById('autoInfo');
+      const noWeightWarn  = document.getElementById('noWeightWarning');
+      autoInfo.classList.remove('show');
+      noWeightWarn.classList.remove('show');
+
+      if (goalMode === 'auto') {
+        // Check if user has weight
+        const { data } = await db.from('weight_log')
+          .select('weight_lbs').eq('user_id', currentUser.id)
+          .order('logged_at', { ascending: false }).limit(1);
+
+        if (data?.length) {
+          const wt = data[0].weight_lbs;
+          const calc = Math.round(wt * 12 - 500);
+          document.getElementById('autoInfo').innerHTML =
+            `Auto goal uses <strong>your weight (${wt} lbs)</strong>: 
+             ${wt} × 12 = ${Math.round(wt*12)} maintenance, minus 500 = 
+             <strong>${calc} cal/day</strong> for weight loss.`;
+          autoInfo.classList.add('show');
+        } else {
+          noWeightWarn.classList.add('show');
+        }
+      }
+    }
+
+    // Save manual goal
+    document.getElementById('saveManualGoal').addEventListener('click', async () => {
+      const val = parseInt(document.getElementById('manualGoalInput').value);
+      if (!val || val < 800 || val > 5000) {
+        showToast('Enter a goal between 800 and 5,000 cal', 'error'); return;
+      }
+      await saveGoalSetting('manual', val);
+      DAILY_GOAL = val;
+      document.getElementById('goalEditPanel').classList.remove('open');
+      updateGoalDisplay();
+      renderStats();
+      showToast(`Goal set to ${val.toLocaleString()} cal ✅`);
+    });
+
+    // Save to Supabase user_settings
+    async function saveGoalSetting(mode, value = null) {
+      await db.from('user_settings').upsert({
+        user_id: currentUser.id,
+        goal_mode: mode,
+        manual_goal: value,
+      }, { onConflict: 'user_id' });
+    }
+
+    // ── LOAD GOAL ──
+    async function loadGoal() {
+      // 1. Try user_settings table
+      const { data: settings } = await db.from('user_settings')
+        .select('*').eq('user_id', currentUser.id).maybeSingle();
+
+      if (settings) {
+        goalMode = settings.goal_mode || 'auto';
+        if (goalMode === 'manual' && settings.manual_goal) {
+          DAILY_GOAL = settings.manual_goal;
+          updateGoalDisplay('manual', DAILY_GOAL);
+          return;
+        }
+      }
+
+      // 2. Auto mode: calculate from latest weight
+      const { data: weightData } = await db.from('weight_log')
+        .select('weight_lbs').eq('user_id', currentUser.id)
+        .order('logged_at', { ascending: false }).limit(1);
+
+      if (weightData?.length) {
+        const wt = parseFloat(weightData[0].weight_lbs);
+        DAILY_GOAL = Math.round(wt * 12 - 500);
+        DAILY_GOAL = Math.max(DAILY_GOAL, 1200); // never below 1200
+        updateGoalDisplay('auto', DAILY_GOAL, wt);
+
+        // Save auto mode preference
+        await saveGoalSetting('auto');
+      } else {
+        // 3. No weight logged — use fallback + show prompt
+        DAILY_GOAL = 2000;
+        updateGoalDisplay('noweight', DAILY_GOAL);
+      }
+    }
+
+    function updateGoalDisplay(source, goal, weight = null) {
+      document.getElementById('goalDisplay').textContent = (goal || DAILY_GOAL).toLocaleString() + ' cal';
+      document.getElementById('goalLabel').textContent = 'Goal: ' + (goal || DAILY_GOAL).toLocaleString() + ' cal';
+
+      const srcEl = document.getElementById('goalSource');
+      if (source === 'auto' && weight) {
+        srcEl.textContent = `⚖️ Auto-calculated from your weight (${weight} lbs)`;
+        srcEl.style.color = 'var(--accent)';
+      } else if (source === 'manual') {
+        srcEl.textContent = '✏️ Manually set by you';
+        srcEl.style.color = 'var(--muted)';
+      } else if (source === 'noweight') {
+        srcEl.innerHTML = '⚠️ Using default — <a href="weight.html" style="color:var(--accent2);text-decoration:underline">log your weight</a> for a personal goal';
+        srcEl.style.color = 'var(--accent2)';
+      }
+    }
+
+    // ── MAIN LOAD ──
+    async function loadPageData() {
+      currentUser = await requireAuth();
+      if (!currentUser) return;
+
+      if (DAILY_GOAL === null) await loadGoal();
+
+      const date = document.getElementById('viewDate').value;
+      const { data } = await db.from('food_log').select('*')
+        .eq('user_id', currentUser.id).eq('logged_at', date)
+        .order('created_at', { ascending: false });
+      renderList(data || []);
+    }
+
+    let lastItems = [];
+    function renderStats() { renderList(lastItems); }
+
+    function renderList(items) {
+      lastItems = items;
+      const total = items.reduce((s, r) => s + r.calories, 0);
+      const goal  = DAILY_GOAL || 2000;
+      const rem   = goal - total;
+      const pct   = Math.min(total / goal * 100, 100);
+
+      document.getElementById('totalEaten').textContent = total.toLocaleString();
+      const remEl = document.getElementById('remaining');
+      remEl.textContent = Math.abs(rem).toLocaleString() + (rem < 0 ? ' over' : '');
+      remEl.className = 'stat-val ' + (rem < 0 ? 'change-positive' : 'green');
+
+      document.getElementById('calBar').style.width = pct + '%';
+      document.getElementById('calBar').className = 'progress-bar-fill' + (pct >= 100 ? ' over' : '');
+
+      const list = document.getElementById('foodList');
+      if (!items.length) {
+        list.innerHTML = '<div class="empty-state"><div class="empty-icon">🥗</div><p>No food logged for this day</p></div>';
+        return;
+      }
+      list.innerHTML = items.map(f => `
+        <div class="log-item" id="fi-${f.id}">
+          <div class="log-item-icon">${MEAL_ICONS[f.meal_type] || '🍽️'}</div>
+          <div class="log-item-info">
+            <div class="log-item-name">${f.food_name}</div>
+            <div class="log-item-meta">${f.meal_type} · ${formatDate(f.logged_at)}</div>
+          </div>
+          <div class="log-item-cal">${f.calories}</div>
+          <button class="btn btn-danger-ghost" onclick="deleteFood('${f.id}')">✕</button>
+        </div>`).join('');
+    }
+
+    document.getElementById('addFoodBtn').addEventListener('click', async () => {
+      const user = await requireAuth();
+      if (!user) return;
+      const name = document.getElementById('foodName').value.trim();
+      const cals = parseInt(document.getElementById('foodCals').value);
+      const meal = document.getElementById('mealType').value;
+      const date = document.getElementById('foodDate').value;
+      if (!name) { showToast('Enter a food name', 'error'); return; }
+      if (!cals || cals < 1) { showToast('Enter calories', 'error'); return; }
+      const btn = document.getElementById('addFoodBtn');
+      btn.textContent = 'Adding…'; btn.disabled = true;
+      const { error } = await db.from('food_log').insert({ user_id: user.id, food_name: name, calories: cals, meal_type: meal, logged_at: date });
+      btn.textContent = '+ Add Food'; btn.disabled = false;
+      if (error) { showToast(error.message, 'error'); }
+      else {
+        document.getElementById('foodName').value = '';
+        document.getElementById('foodCals').value = '';
+        showToast(`${name} added — ${cals} cal 🍽️`);
+        document.getElementById('viewDate').value = date;
+        loadPageData();
+      }
+    });
+
+    async function deleteFood(id) {
+      if (!confirm('Remove this entry?')) return;
+      await db.from('food_log').delete().eq('id', id);
+      showToast('Removed');
+      loadPageData();
+    }
+  </script>
+</body>
+</html>

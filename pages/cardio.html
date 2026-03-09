@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+  <meta name="theme-color" content="#0a0a0f"/>
+  <title>FitTrack — Cardio</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../css/style.css"/>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+  <div class="noise"></div>
+
+  <header class="top-header">
+    <div id="authStatus"></div>
+  </header>
+
+  <main class="page">
+    <div class="page-title">CARDIO<br><span style="color:var(--accent2)">LOG</span></div>
+    <div class="page-subtitle">Track your workouts & calorie burn</div>
+
+    <!-- Today's burn -->
+    <div class="stats-row" style="margin-bottom:16px">
+      <div class="stat-card accent-orange">
+        <span class="stat-val orange" id="totalBurned">0</span>
+        <span class="stat-label">Burned Today</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-val muted" id="totalMins">0</span>
+        <span class="stat-label">Minutes Active</span>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <!-- Machine picker -->
+    <div class="section-label">Select Machine / Activity</div>
+    <div class="machine-grid" id="machineGrid">
+      <button class="machine-btn" data-machine="Treadmill"      data-met="8.0" onclick="selectMachine(this)"><span class="m-icon">🏃</span><span class="m-name">Treadmill</span></button>
+      <button class="machine-btn" data-machine="Stair Climber"  data-met="9.0" onclick="selectMachine(this)"><span class="m-icon">🪜</span><span class="m-name">Stairs</span></button>
+      <button class="machine-btn" data-machine="Elliptical"     data-met="8.5" onclick="selectMachine(this)"><span class="m-icon">🔄</span><span class="m-name">Elliptical</span></button>
+      <button class="machine-btn" data-machine="Stationary Bike" data-met="7.0" onclick="selectMachine(this)"><span class="m-icon">🚴</span><span class="m-name">Bike</span></button>
+      <button class="machine-btn" data-machine="Rowing Machine" data-met="8.5" onclick="selectMachine(this)"><span class="m-icon">🚣</span><span class="m-name">Rowing</span></button>
+      <button class="machine-btn" data-machine="Jump Rope"      data-met="11.0" onclick="selectMachine(this)"><span class="m-icon">🪢</span><span class="m-name">Jump Rope</span></button>
+      <button class="machine-btn" data-machine="Swimming"       data-met="8.0" onclick="selectMachine(this)"><span class="m-icon">🏊</span><span class="m-name">Swim</span></button>
+      <button class="machine-btn" data-machine="Custom"         data-met="0"   onclick="selectMachine(this)"><span class="m-icon">⚙️</span><span class="m-name">Custom</span></button>
+    </div>
+
+    <!-- Custom name field -->
+    <div id="customRow" style="display:none;margin-bottom:12px">
+      <label class="form-label">Custom activity name</label>
+      <input type="text" id="customName" class="input" placeholder="e.g. Basketball, Hiking…"/>
+    </div>
+
+    <!-- Duration + cals -->
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-body">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Duration (minutes)</label>
+            <input type="number" id="duration" class="input" placeholder="e.g. 30" min="1" inputmode="numeric" oninput="autoCalc()"/>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Calories burned</label>
+            <input type="number" id="calsBurned" class="input" placeholder="Auto or type" min="1" inputmode="numeric"/>
+          </div>
+        </div>
+        <div id="autoCalcHint" style="font-size:12px;color:var(--accent2);margin-bottom:12px;min-height:16px"></div>
+        <div class="form-group">
+          <label class="form-label">Date</label>
+          <input type="date" id="cardioDate" class="input"/>
+        </div>
+        <button class="btn btn-primary" id="logCardioBtn" style="background:var(--accent2);color:#fff">+ Log Workout</button>
+      </div>
+    </div>
+
+    <!-- History -->
+    <div class="section-header">
+      <div class="section-label" style="margin-bottom:0">Workouts</div>
+      <input type="date" id="viewDate" class="input" style="width:auto;font-size:13px;padding:8px 12px"/>
+    </div>
+
+    <div class="log-list" id="cardioList">
+      <div class="empty-state">
+        <div class="empty-icon">🏋️</div>
+        <p>No workouts logged yet.<br/>Pick a machine above!</p>
+      </div>
+    </div>
+  </main>
+
+  <script src="../js/config.js"></script>
+  <script src="../js/nav.js"></script>
+  <script src="../js/utils.js"></script>
+  <script>
+    let selectedMachine = null;
+    let selectedMet = 0;
+
+    document.getElementById('cardioDate').value = todayStr();
+    document.getElementById('viewDate').value = todayStr();
+    document.getElementById('viewDate').addEventListener('change', loadPageData);
+
+    function selectMachine(btn) {
+      document.querySelectorAll('.machine-btn').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+      selectedMachine = btn.dataset.machine;
+      selectedMet = parseFloat(btn.dataset.met);
+      document.getElementById('customRow').style.display = selectedMachine === 'Custom' ? 'block' : 'none';
+      autoCalc();
+    }
+
+    function autoCalc() {
+      const mins = parseInt(document.getElementById('duration').value) || 0;
+      const kg = USER_WEIGHT_LBS * 0.453592;
+      if (mins > 0 && selectedMet > 0) {
+        const est = Math.round(selectedMet * kg * (mins / 60));
+        document.getElementById('calsBurned').value = est;
+        document.getElementById('autoCalcHint').textContent = `Estimated ~${est} cal based on your weight & MET value`;
+      } else {
+        document.getElementById('autoCalcHint').textContent = '';
+      }
+    }
+
+    document.getElementById('logCardioBtn').addEventListener('click', async () => {
+      const user = await requireAuth();
+      if (!user) return;
+
+      let machine = selectedMachine;
+      if (!machine) { showToast('Pick a machine first', 'error'); return; }
+      if (machine === 'Custom') {
+        machine = document.getElementById('customName').value.trim();
+        if (!machine) { showToast('Enter activity name', 'error'); return; }
+      }
+
+      const mins = parseInt(document.getElementById('duration').value);
+      const cals = parseInt(document.getElementById('calsBurned').value);
+      const date = document.getElementById('cardioDate').value;
+
+      if (!mins || mins < 1) { showToast('Enter duration', 'error'); return; }
+      if (!cals || cals < 1) { showToast('Enter calories burned', 'error'); return; }
+
+      const btn = document.getElementById('logCardioBtn');
+      btn.textContent = 'Logging…';
+      btn.disabled = true;
+
+      const { error } = await db.from('cardio_log').insert({
+        user_id: user.id, machine, duration_mins: mins, calories_burned: cals, logged_at: date
+      });
+
+      btn.textContent = '+ Log Workout';
+      btn.disabled = false;
+
+      if (error) { showToast(error.message, 'error'); }
+      else {
+        document.getElementById('duration').value = '';
+        document.getElementById('calsBurned').value = '';
+        document.getElementById('autoCalcHint').textContent = '';
+        showToast(`${machine} — ${cals} cal burned! 🔥`);
+        document.getElementById('viewDate').value = date;
+        loadPageData();
+      }
+    });
+
+    async function loadPageData() {
+      const user = await requireAuth();
+      if (!user) {
+        document.getElementById('cardioList').innerHTML = '<div class="empty-state"><div class="empty-icon">🔒</div><p>Sign in to see your workouts</p></div>';
+        return;
+      }
+      const date = document.getElementById('viewDate').value;
+      const { data } = await db.from('cardio_log').select('*').eq('user_id', user.id).eq('logged_at', date).order('created_at', { ascending: false });
+      renderList(data || []);
+    }
+
+    function renderList(items) {
+      const totalBurned = items.reduce((s, r) => s + r.calories_burned, 0);
+      const totalMins   = items.reduce((s, r) => s + r.duration_mins, 0);
+      document.getElementById('totalBurned').textContent = totalBurned.toLocaleString();
+      document.getElementById('totalMins').textContent   = totalMins;
+
+      const list = document.getElementById('cardioList');
+      if (!items.length) {
+        list.innerHTML = '<div class="empty-state"><div class="empty-icon">🏋️</div><p>No workouts for this day</p></div>';
+        return;
+      }
+      list.innerHTML = items.map(c => `
+        <div class="log-item">
+          <div class="log-item-icon">🔥</div>
+          <div class="log-item-info">
+            <div class="log-item-name">${c.machine}</div>
+            <div class="log-item-meta">${c.duration_mins} min · ${formatDate(c.logged_at)}</div>
+          </div>
+          <div class="log-item-cal burn">${c.calories_burned}</div>
+          <button class="btn btn-danger-ghost" onclick="deleteCardio('${c.id}')">✕</button>
+        </div>`).join('');
+    }
+
+    async function deleteCardio(id) {
+      if (!confirm('Remove this workout?')) return;
+      await db.from('cardio_log').delete().eq('id', id);
+      showToast('Removed');
+      loadPageData();
+    }
+
+    document.addEventListener('DOMContentLoaded', loadPageData);
+  </script>
+</body>
+</html>

@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+  <meta name="theme-color" content="#0a0a0f"/>
+  <title>FitTrack — Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css"/>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+  <div class="noise"></div>
+
+  <main class="page">
+
+    <!-- HERO -->
+    <div class="dashboard-hero">
+      <div class="hero-main">
+        <div class="hero-date" id="heroDate">Today</div>
+        <div class="hero-net" id="heroNet">—</div>
+        <div class="hero-net-label" id="heroNetLabel">net calories today</div>
+        <div class="progress-bar-wrap" style="margin-top:14px">
+          <div class="progress-bar-track">
+            <div class="progress-bar-fill" id="progressFill"></div>
+          </div>
+          <div class="progress-bar-labels">
+            <span id="progressIn">0 eaten</span>
+            <span id="progressBurned">0 burned</span>
+          </div>
+        </div>
+      </div>
+      <div class="hero-stats">
+        <div class="hero-stat">
+          <span class="hero-stat-val yellow" id="statsIn">0</span>
+          <span class="hero-stat-label">Eaten</span>
+        </div>
+        <div class="hero-stat">
+          <span class="hero-stat-val orange" id="statsBurned">0</span>
+          <span class="hero-stat-label">Burned</span>
+        </div>
+        <div class="hero-stat">
+          <span class="hero-stat-val green" id="statsWeight">—</span>
+          <span class="hero-stat-label">Lbs</span>
+        </div>
+        <div class="hero-stat">
+          <span class="hero-stat-val" id="statsRemaining" style="color:var(--muted)">—</span>
+          <span class="hero-stat-label">Remaining</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- QUICK LOG -->
+    <div class="section-label" style="margin-bottom:10px">Quick Log</div>
+    <div class="quick-actions three" style="margin-bottom:24px">
+      <a class="quick-card food" href="pages/calories.html">
+        <div class="quick-card-icon">🍽️</div>
+        <div class="quick-card-title">Log Food</div>
+        <div class="quick-card-sub">Track calories eaten</div>
+      </a>
+      <a class="quick-card burn" href="pages/cardio.html">
+        <div class="quick-card-icon">🔥</div>
+        <div class="quick-card-title">Log Cardio</div>
+        <div class="quick-card-sub">Track workout burn</div>
+      </a>
+      <a class="quick-card scale" href="pages/weight.html">
+        <div class="quick-card-icon">⚖️</div>
+        <div class="quick-card-title">Log Weight</div>
+        <div class="quick-card-sub">Track your progress</div>
+      </a>
+    </div>
+
+    <!-- TWO COLUMN LOG PANELS -->
+    <div class="dash-two-col">
+      <div class="log-panel">
+        <div class="log-panel-head">
+          <span class="section-label" style="margin-bottom:0">Today's Food</span>
+          <a href="pages/calories.html" class="log-panel-btn">+ Add</a>
+        </div>
+        <div class="log-list" id="recentFood">
+          <div class="empty-state"><div class="empty-icon">🥗</div><p>Nothing logged yet today</p></div>
+        </div>
+      </div>
+      <div class="log-panel">
+        <div class="log-panel-head">
+          <span class="section-label" style="margin-bottom:0">Today's Cardio</span>
+          <a href="pages/cardio.html" class="log-panel-btn">+ Add</a>
+        </div>
+        <div class="log-list" id="recentCardio">
+          <div class="empty-state"><div class="empty-icon">🏃</div><p>No workouts logged yet</p></div>
+        </div>
+      </div>
+    </div>
+
+  <script src="js/config.js"></script>
+  <script src="js/nav.js"></script>
+  <script src="js/utils.js"></script>
+  <script>
+    async function loadPageData() {
+      const { data: { user } } = await db.auth.getUser();
+      const today = todayStr();
+
+      document.getElementById('heroDate').textContent =
+        new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }).toUpperCase();
+
+      if (!user) return;
+
+      const [foodRes, cardioRes, weightRes, settingsRes] = await Promise.all([
+        db.from('food_log').select('*').eq('user_id', user.id).eq('logged_at', today).order('created_at', { ascending: false }),
+        db.from('cardio_log').select('*').eq('user_id', user.id).eq('logged_at', today).order('created_at', { ascending: false }),
+        db.from('weight_log').select('weight_lbs').eq('user_id', user.id).order('logged_at', { ascending: false }).limit(1),
+        db.from('user_settings').select('goal_mode,manual_goal').eq('user_id', user.id).maybeSingle()
+      ]);
+
+      const food   = foodRes.data  || [];
+      const cardio = cardioRes.data || [];
+      const eaten  = food.reduce((s, r) => s + r.calories, 0);
+      const burned = cardio.reduce((s, r) => s + r.calories_burned, 0);
+      const net    = eaten - burned;
+
+      // Resolve calorie goal the same way calories.html does
+      const settings = settingsRes.data;
+      let GOAL = 2000;
+      if (settings?.goal_mode === 'manual' && settings.manual_goal) {
+        GOAL = settings.manual_goal;
+      } else if (weightRes.data?.length) {
+        GOAL = Math.max(Math.round(parseFloat(weightRes.data[0].weight_lbs) * 12 - 500), 1200);
+      }
+
+      const remaining = GOAL - net;
+
+      const heroEl = document.getElementById('heroNet');
+      heroEl.textContent = net.toLocaleString();
+      heroEl.className = 'hero-net' + (net > GOAL ? ' over' : '');
+      document.getElementById('heroNetLabel').textContent = net > GOAL ? 'net cal — over goal!' : 'net calories today';
+
+      const pct = Math.min(burned / Math.max(eaten, 1) * 100, 100);
+      document.getElementById('progressFill').style.width = pct + '%';
+      document.getElementById('progressIn').textContent = eaten.toLocaleString() + ' eaten';
+      document.getElementById('progressBurned').textContent = burned.toLocaleString() + ' burned';
+
+      document.getElementById('statsIn').textContent = eaten.toLocaleString();
+      document.getElementById('statsBurned').textContent = burned.toLocaleString();
+      const remEl = document.getElementById('statsRemaining');
+      remEl.textContent = Math.abs(remaining).toLocaleString() + (remaining < 0 ? ' over' : '');
+      remEl.style.color = remaining < 0 ? 'var(--danger)' : 'var(--success)';
+
+      if (weightRes.data?.length) {
+        document.getElementById('statsWeight').textContent = weightRes.data[0].weight_lbs;
+      }
+
+      const mealIcons = { breakfast:'🌅', lunch:'☀️', dinner:'🌙', snack:'🍎', other:'🍽️' };
+      const foodEl = document.getElementById('recentFood');
+      if (food.length) {
+        foodEl.innerHTML = food.map(f => `
+          <div class="log-item">
+            <div class="log-item-icon">${mealIcons[f.meal_type] || '🍽️'}</div>
+            <div class="log-item-info">
+              <div class="log-item-name">${f.food_name}</div>
+              <div class="log-item-meta">${f.meal_type}</div>
+            </div>
+            <div class="log-item-cal">${f.calories}</div>
+          </div>`).join('');
+      } else {
+        foodEl.innerHTML = '<div class="empty-state"><div class="empty-icon">🥗</div><p>Nothing logged yet</p></div>';
+      }
+
+      const cardioEl = document.getElementById('recentCardio');
+      if (cardio.length) {
+        cardioEl.innerHTML = cardio.map(c => `
+          <div class="log-item">
+            <div class="log-item-icon">🔥</div>
+            <div class="log-item-info">
+              <div class="log-item-name">${c.machine}</div>
+              <div class="log-item-meta">${c.duration_mins} min</div>
+            </div>
+            <div class="log-item-cal burn">${c.calories_burned}</div>
+          </div>`).join('');
+      } else {
+        cardioEl.innerHTML = '<div class="empty-state"><div class="empty-icon">🏃</div><p>No workouts logged yet</p></div>';
+      }
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+  <meta name="theme-color" content="#0a0a0f"/>
+  <title>FitTrack — Weight</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../css/style.css"/>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <div class="noise"></div>
+
+  <header class="top-header">
+    <div id="authStatus"></div>
+  </header>
+
+  <main class="page">
+    <div class="page-title">WEIGHT<br><span style="color:var(--success)">CHART</span></div>
+    <div class="page-subtitle">Track your progress over time</div>
+
+    <!-- Weight stats -->
+    <div class="stats-row three" style="margin-bottom:16px">
+      <div class="stat-card accent-green">
+        <span class="stat-val green" id="currentWeight">—</span>
+        <span class="stat-label">Current</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-val muted" id="startWeight">—</span>
+        <span class="stat-label">Starting</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-val" id="totalChange" style="color:var(--muted)">—</span>
+        <span class="stat-label">Change</span>
+      </div>
+    </div>
+
+    <!-- Chart -->
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-body">
+        <div class="section-label">Progress Chart</div>
+        <div class="chart-wrap">
+          <canvas id="weightChart"></canvas>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:10px">
+          <button class="btn btn-ghost btn-sm" onclick="setRange(30)" id="r30">30d</button>
+          <button class="btn btn-ghost btn-sm" onclick="setRange(60)" id="r60">60d</button>
+          <button class="btn btn-ghost btn-sm" onclick="setRange(90)" id="r90">90d</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Log form -->
+    <div class="section-label">Log Weight</div>
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-body">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Weight (lbs)</label>
+            <input type="number" id="weightInput" class="input" placeholder="e.g. 258.5" step="0.1" min="50" inputmode="decimal"/>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Date</label>
+            <input type="date" id="weightDate" class="input"/>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Note (optional)</label>
+          <input type="text" id="weightNote" class="input" placeholder="e.g. Morning weight, after gym…"/>
+        </div>
+        <button class="btn btn-primary" id="logWeightBtn" style="background:var(--success);color:#000">+ Log Weight</button>
+      </div>
+    </div>
+
+    <!-- History -->
+    <div class="section-label">History</div>
+    <div class="log-list" id="weightList">
+      <div class="empty-state">
+        <div class="empty-icon">⚖️</div>
+        <p>No weight logged yet.<br/>Start tracking today!</p>
+      </div>
+    </div>
+  </main>
+
+  <script src="../js/config.js"></script>
+  <script src="../js/nav.js"></script>
+  <script src="../js/utils.js"></script>
+  <script>
+    let chartInst = null;
+    let allData = [];
+    let days = 30;
+
+    document.getElementById('weightDate').value = todayStr();
+
+    function setRange(d) {
+      days = d;
+      ['r30','r60','r90'].forEach(id => document.getElementById(id).style.opacity = '0.5');
+      document.getElementById('r' + d).style.opacity = '1';
+      renderChart(allData);
+    }
+    setRange(30);
+
+    async function loadPageData() {
+      const user = await requireAuth();
+      if (!user) {
+        document.getElementById('weightList').innerHTML = '<div class="empty-state"><div class="empty-icon">🔒</div><p>Sign in to track your weight</p></div>';
+        return;
+      }
+
+      const { data } = await db.from('weight_log').select('*').eq('user_id', user.id).order('logged_at', { ascending: false }).limit(120);
+      allData = data || [];
+      renderStats(allData);
+      renderChart(allData);
+      renderList(allData.slice(0, 30));
+    }
+
+    function renderStats(items) {
+      if (!items.length) return;
+      const sorted = [...items].sort((a, b) => new Date(a.logged_at) - new Date(b.logged_at));
+      const current = sorted[sorted.length - 1].weight_lbs;
+      const start   = sorted[0].weight_lbs;
+      const change  = +(current - start).toFixed(1);
+
+      document.getElementById('currentWeight').textContent = current;
+      document.getElementById('startWeight').textContent   = start;
+      const chEl = document.getElementById('totalChange');
+      chEl.textContent = (change > 0 ? '+' : '') + change;
+      chEl.className = 'stat-val ' + (change < 0 ? 'green' : change > 0 ? 'change-positive' : 'muted');
+    }
+
+    function renderChart(items) {
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - days);
+
+      const filtered = [...items]
+        .filter(d => new Date(d.logged_at + 'T00:00:00') >= cutoff)
+        .sort((a, b) => new Date(a.logged_at) - new Date(b.logged_at));
+
+      const labels  = filtered.map(d => formatDate(d.logged_at));
+      const weights = filtered.map(d => d.weight_lbs);
+
+      if (chartInst) chartInst.destroy();
+
+      const ctx = document.getElementById('weightChart').getContext('2d');
+      chartInst = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [{
+            label: 'lbs',
+            data: weights,
+            borderColor: '#4ade80',
+            backgroundColor: 'rgba(74,222,128,0.06)',
+            borderWidth: 2,
+            pointBackgroundColor: '#4ade80',
+            pointBorderColor: '#131318',
+            pointBorderWidth: 2,
+            pointRadius: weights.length < 15 ? 5 : 3,
+            fill: true,
+            tension: 0.4
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: '#1c1c24',
+              borderColor: 'rgba(255,255,255,0.08)',
+              borderWidth: 1,
+              titleColor: '#6b7280',
+              bodyColor: '#f0f0f0',
+              padding: 12,
+              callbacks: { label: ctx => ` ${ctx.raw} lbs` }
+            }
+          },
+          scales: {
+            x: {
+              grid: { color: 'rgba(255,255,255,0.04)' },
+              ticks: { color: '#6b7280', font: { family: 'DM Sans', size: 11 }, maxRotation: 0, maxTicksLimit: 6 },
+              border: { color: 'rgba(255,255,255,0.06)' }
+            },
+            y: {
+              grid: { color: 'rgba(255,255,255,0.04)' },
+              ticks: { color: '#6b7280', font: { family: 'DM Sans', size: 11 }, callback: v => v + ' lbs' },
+              border: { color: 'rgba(255,255,255,0.06)' }
+            }
+          }
+        }
+      });
+    }
+
+    function renderList(items) {
+      const list = document.getElementById('weightList');
+      if (!items.length) {
+        list.innerHTML = '<div class="empty-state"><div class="empty-icon">⚖️</div><p>No entries yet</p></div>';
+        return;
+      }
+      list.innerHTML = items.map((w, i) => {
+        const prev = items[i + 1];
+        const diff = prev ? +(w.weight_lbs - prev.weight_lbs).toFixed(1) : null;
+        const diffStr = diff !== null
+          ? `<span class="${diff < 0 ? 'change-negative' : diff > 0 ? 'change-positive' : ''}" style="font-size:11px;margin-left:6px">${diff > 0 ? '+' : ''}${diff}</span>`
+          : '';
+        return `
+          <div class="log-item">
+            <div class="log-item-icon">⚖️</div>
+            <div class="log-item-info">
+              <div class="log-item-name">${w.weight_lbs} lbs ${diffStr}</div>
+              <div class="log-item-meta">${formatDate(w.logged_at)}${w.note ? ' · ' + w.note : ''}</div>
+            </div>
+            <button class="btn btn-danger-ghost" onclick="deleteWeight('${w.id}')">✕</button>
+          </div>`;
+      }).join('');
+    }
+
+    document.getElementById('logWeightBtn').addEventListener('click', async () => {
+      const user = await requireAuth();
+      if (!user) return;
+
+      const w    = parseFloat(document.getElementById('weightInput').value);
+      const date = document.getElementById('weightDate').value;
+      const note = document.getElementById('weightNote').value.trim();
+
+      if (!w || w < 50) { showToast('Enter a valid weight', 'error'); return; }
+
+      const btn = document.getElementById('logWeightBtn');
+      btn.textContent = 'Logging…';
+      btn.disabled = true;
+
+      const { error } = await db.from('weight_log').insert({ user_id: user.id, weight_lbs: w, note: note || null, logged_at: date });
+
+      btn.textContent = '+ Log Weight';
+      btn.disabled = false;
+
+      if (error) { showToast(error.message, 'error'); }
+      else {
+        document.getElementById('weightInput').value = '';
+        document.getElementById('weightNote').value = '';
+        showToast(`${w} lbs logged! 📉`);
+        loadPageData();
+      }
+    });
+
+    async function deleteWeight(id) {
+      if (!confirm('Remove this entry?')) return;
+      await db.from('weight_log').delete().eq('id', id);
+      showToast('Removed');
+      loadPageData();
+    }
+
+    document.addEventListener('DOMContentLoaded', loadPageData);
+  </script>
+</body>
+</html>
