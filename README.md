@@ -1,10 +1,4 @@
 # 🏋️‍♂️ FitTrack
-
-![GitHub repo size](https://img.shields.io/github/repo-size/yourusername/fittrack)
-![GitHub stars](https://img.shields.io/github/stars/yourusername/fittrack?style=social)
-![GitHub license](https://img.shields.io/github/license/yourusername/fittrack)
-![GitHub last commit](https://img.shields.io/github/last-commit/yourusername/fittrack)
-
 **Free • Private • No Ads • No Subscriptions**
 
 A simple personal fitness dashboard for tracking **calories, workouts, and weight progress** without giving your data to big companies.
