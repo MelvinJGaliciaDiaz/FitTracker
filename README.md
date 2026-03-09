@@ -81,37 +81,7 @@ FitTrack guarantees:
 * ❌ No tracking
 * ✅ Fully private accounts
 
----
 
-# 📸 Screenshots
-
-*(Add images once your UI is ready)*
-
-### Dashboard
-
-```
-/screenshots/dashboard.png
-```
-
-### Food Logging
-
-```
-/screenshots/food-log.png
-```
-
-### Cardio Tracking
-
-```
-/screenshots/cardio.png
-```
-
-### Weight Progress
-
-```
-/screenshots/weight-chart.png
-```
-
----
 
 # 🚀 Getting Started
 
@@ -179,28 +149,6 @@ See your progress through numbers and charts.
 * JavaScript
 * GitHub Pages
 * Database backend (private)
-
----
-
-# 📂 Project Structure
-
-```
-fittrack
-│
-├── index.html
-├── style.css
-├── script.js
-│
-├── screenshots
-│   ├── dashboard.png
-│   ├── food-log.png
-│   ├── cardio.png
-│   └── weight-chart.png
-│
-└── README.md
-```
-
----
 
 # ⭐ Contributing
 
