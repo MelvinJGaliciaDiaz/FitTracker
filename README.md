@@ -144,17 +144,6 @@ See your progress through numbers and charts.
 * GitHub Pages
 * Database backend (private)
 
-# ⭐ Contributing
-
-Currently built as a **personal project**, but improvements and ideas are welcome.
-
-If you'd like to contribute:
-
-1. Fork the repo
-2. Create a branch
-3. Submit a pull request
-
----
 
 # 📄 License
 
