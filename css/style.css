@@ -1244,3 +1244,38 @@ select.input {
   .vs-divider     { display: none; }
   .about-title    { font-size: 32px; }
 }
+
+/* ===== DASHBOARD DATE NAV ===== */
+.hero-date-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 4px;
+  position: relative;
+}
+
+.hero-date-nav {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 20px;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  flex-shrink: 0;
+  -webkit-appearance: none;
+  padding: 0;
+  line-height: 1;
+}
+.hero-date-nav:hover { background: var(--surface); border-color: var(--accent); color: var(--accent); }
+
+.hero-date {
+  cursor: pointer;
+  transition: color 0.15s;
+}
+.hero-date:hover { color: var(--accent); }
