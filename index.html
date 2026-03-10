@@ -20,7 +20,12 @@
     <!-- HERO -->
     <div class="dashboard-hero">
       <div class="hero-main">
-        <div class="hero-date" id="heroDate">Today</div>
+        <div class="hero-date-row">
+          <button class="hero-date-nav" id="prevDay">‹</button>
+          <div class="hero-date" id="heroDate" onclick="openDatePicker()" title="Pick a date">Today</div>
+          <button class="hero-date-nav" id="nextDay" id="nextDay">›</button>
+          <input type="date" id="datePicker" style="position:absolute;opacity:0;pointer-events:none;width:0;height:0"/>
+        </div>
         <div class="hero-net" id="heroNet">—</div>
         <div class="hero-net-label" id="heroNetLabel">net calories today</div>
         <div class="progress-bar-wrap" style="margin-top:14px">
@@ -77,7 +82,7 @@
     <div class="dash-two-col">
       <div class="log-panel">
         <div class="log-panel-head">
-          <span class="section-label" style="margin-bottom:0">Today's Food</span>
+          <span class="section-label" style="margin-bottom:0" id="foodPanelLabel">Today's Food</span>
           <a href="pages/calories.html" class="log-panel-btn">+ Add</a>
         </div>
         <div class="log-list" id="recentFood">
@@ -86,7 +91,7 @@
       </div>
       <div class="log-panel">
         <div class="log-panel-head">
-          <span class="section-label" style="margin-bottom:0">Today's Cardio</span>
+          <span class="section-label" style="margin-bottom:0" id="cardioPanelLabel">Today's Cardio</span>
           <a href="pages/cardio.html" class="log-panel-btn">+ Add</a>
         </div>
         <div class="log-list" id="recentCardio">
@@ -95,37 +100,92 @@
       </div>
     </div>
 
+
+
   <script src="js/config.js"></script>
   <script src="js/nav.js"></script>
   <script src="js/utils.js"></script>
   <script>
+    let selectedDate = todayStr();
+
+    function openDatePicker() {
+      const picker = document.getElementById('datePicker');
+      picker.value = selectedDate;
+      picker.showPicker ? picker.showPicker() : picker.click();
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      const picker = document.getElementById('datePicker');
+      picker.addEventListener('change', () => {
+        selectedDate = picker.value;
+        loadPageData();
+      });
+      document.getElementById('prevDay').addEventListener('click', () => {
+        const d = new Date(selectedDate + 'T00:00:00');
+        d.setDate(d.getDate() - 1);
+        selectedDate = d.toISOString().split('T')[0];
+        loadPageData();
+      });
+      document.getElementById('nextDay').addEventListener('click', () => {
+        const d = new Date(selectedDate + 'T00:00:00');
+        d.setDate(d.getDate() + 1);
+        const today = todayStr();
+        if (selectedDate >= today) return; // can't go past today
+        selectedDate = d.toISOString().split('T')[0];
+        loadPageData();
+      });
+    });
+
     async function loadPageData() {
       const { data: { user } } = await db.auth.getUser();
       const today = todayStr();
+      const isToday = selectedDate === today;
 
-      document.getElementById('heroDate').textContent =
-        new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }).toUpperCase();
+      // Format the selected date nicely
+      const displayDate = new Date(selectedDate + 'T00:00:00')
+        .toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }).toUpperCase();
+      document.getElementById('heroDate').textContent = isToday ? 'TODAY — ' + displayDate : displayDate;
+
+      // Update panel labels
+      const dayLabel = isToday ? 'Today' : new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      document.getElementById('foodPanelLabel').textContent = dayLabel + "'s Food";
+      document.getElementById('cardioPanelLabel').textContent = dayLabel + "'s Cardio";
+
+      // Dim next arrow if on today
+      document.getElementById('nextDay').style.opacity = isToday ? '0.2' : '1';
+      document.getElementById('nextDay').style.cursor  = isToday ? 'default' : 'pointer';
 
       if (!user) return;
 
-      const [foodRes, cardioRes, weightRes, settingsRes] = await Promise.all([
-        db.from('food_log').select('*').eq('user_id', user.id).eq('logged_at', today).order('created_at', { ascending: false }),
-        db.from('cardio_log').select('*').eq('user_id', user.id).eq('logged_at', today).order('created_at', { ascending: false }),
+      // Fetch each query independently so one failure doesn't break everything
+      const [foodRes, cardioRes, weightRes] = await Promise.all([
+        db.from('food_log').select('*').eq('user_id', user.id).eq('logged_at', selectedDate).order('created_at', { ascending: false }),
+        db.from('cardio_log').select('*').eq('user_id', user.id).eq('logged_at', selectedDate).order('created_at', { ascending: false }),
         db.from('weight_log').select('weight_lbs').eq('user_id', user.id).order('logged_at', { ascending: false }).limit(1),
-        db.from('user_settings').select('goal_mode,manual_goal').eq('user_id', user.id).maybeSingle()
       ]);
+
+      // user_settings is optional — if table doesn't exist yet, don't crash
+      let settingsData = null;
+      try {
+        const { data } = await db.from('user_settings').select('goal_mode,manual_goal').eq('user_id', user.id).maybeSingle();
+        settingsData = data;
+      } catch(e) { /* table may not exist yet */ }
 
       const food   = foodRes.data  || [];
       const cardio = cardioRes.data || [];
+
+      // Debug: log what we got so you can see in browser console
+      console.log('Today:', today, 'Food entries:', food.length, 'Cardio entries:', cardio.length);
+      if (foodRes.error) console.error('Food query error:', foodRes.error);
+
       const eaten  = food.reduce((s, r) => s + r.calories, 0);
       const burned = cardio.reduce((s, r) => s + r.calories_burned, 0);
       const net    = eaten - burned;
 
-      // Resolve calorie goal the same way calories.html does
-      const settings = settingsRes.data;
+      // Resolve calorie goal
       let GOAL = 2000;
-      if (settings?.goal_mode === 'manual' && settings.manual_goal) {
-        GOAL = settings.manual_goal;
+      if (settingsData?.goal_mode === 'manual' && settingsData.manual_goal) {
+        GOAL = settingsData.manual_goal;
       } else if (weightRes.data?.length) {
         GOAL = Math.max(Math.round(parseFloat(weightRes.data[0].weight_lbs) * 12 - 500), 1200);
       }
